@@ -9,53 +9,52 @@ const FaceDetection: React.FC = () => {
   const [emotion, setEmotion] = useState("Click Start Detection");
   const [isDetecting, setIsDetecting] = useState(false);
 
-  // Load Model
+  // Load Face Model
   const loadFaceModel = async () => {
     await faceapi.nets.tinyFaceDetector.loadFromUri("/models/face");
   };
 
-  const startSilentCamera = async () => {
+  // Start camera
+  const startCamera = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     if (videoRef.current) videoRef.current.srcObject = stream;
-    return stream;
   };
 
+  // Stop camera
   const stopCamera = () => {
     const stream = videoRef.current?.srcObject as MediaStream;
-    stream?.getTracks().forEach((t) => t.stop());
+    if (stream) stream.getTracks().forEach((t) => t.stop());
   };
 
+  // Compress canvas → image file
   async function compressCanvas(canvas: HTMLCanvasElement): Promise<File> {
-    const blob: Blob = await new Promise((resolve) =>
-      canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.9)
+    const blob = await new Promise<Blob>((resolve) =>
+      canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.95)
     );
 
-    const file = new File([blob], "capture.jpg", {
+    const file = new File([blob], "frame.jpg", {
       type: "image/jpeg",
       lastModified: Date.now(),
     });
 
     return await imageCompression(file, {
-      maxSizeMB: 0.2,
+      maxSizeMB: 0.3,
       maxWidthOrHeight: 300,
       useWebWorker: true,
     });
   }
 
-  // MAIN LOGIC (unchanged)
+  // Main detection function
   const detectEmotion = async () => {
     setIsDetecting(true);
     setEmotion("Detecting...");
-    await loadFaceModel();
 
-    await startSilentCamera();
-    const video = videoRef.current!;
-    video.play();
+    await loadFaceModel();
+    await startCamera();
 
     const emotionsArray: string[] = [];
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d")!;
-
     const startTime = Date.now();
 
     return new Promise<void>((resolve) => {
@@ -72,11 +71,11 @@ const FaceDetection: React.FC = () => {
               return acc;
             }, {});
 
-            const finalEmotion = Object.keys(freq).reduce((a, b) =>
+            const best = Object.keys(freq).reduce((a, b) =>
               freq[a] > freq[b] ? a : b
             );
 
-            setEmotion(finalEmotion);
+            setEmotion(best);
           }
 
           setIsDetecting(false);
@@ -84,6 +83,7 @@ const FaceDetection: React.FC = () => {
           return;
         }
 
+        const video = videoRef.current!;
         const detection = await faceapi.detectSingleFace(
           video,
           new faceapi.TinyFaceDetectorOptions()
@@ -111,7 +111,7 @@ const FaceDetection: React.FC = () => {
         const compressedFile = await compressCanvas(canvas);
 
         const formData = new FormData();
-        formData.append("image", compressedFile, "face.jpg");
+        formData.append("image", compressedFile);
 
         try {
           const res = await fetch("http://127.0.0.1:5001/predict-emotion", {
@@ -122,7 +122,7 @@ const FaceDetection: React.FC = () => {
           const data = await res.json();
           if (data?.emotion) emotionsArray.push(data.emotion);
         } catch (err) {
-          console.error(err);
+          console.log("Backend Error", err);
         }
       }, 200);
     });
@@ -132,37 +132,33 @@ const FaceDetection: React.FC = () => {
     <div className="min-h-screen bg-white text-gray-900">
       <Navbar />
 
-      {/* Hidden video */}
-      <video ref={videoRef} className="hidden" autoPlay muted playsInline />
+      {/* Invisible Camera */}
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className="absolute opacity-0 w-1 h-1"
+      />
 
       <div className="flex flex-col items-center pt-20 px-4">
+        <h1 className="text-3xl font-bold mb-6">Face Emotion Detection</h1>
 
-        <h1 className="text-4xl font-bold mb-6 text-center">
-          Face Emotion Detection
-        </h1>
-
-        {/* Instructions Section (NEUTRAL THEME) */}
-        <div className="max-w-lg text-center text-gray-700 bg-gray-100 p-4 rounded-lg border border-gray-300 mb-8">
-          <p className="font-semibold">📌 Instructions</p>
-          <p className="mt-2">
-            • Sit in a well-lit area. <br />
-            • Keep your face straight and centered. <br />
-            • The camera will capture your face automatically. <br />
-            • Wait for 6 seconds while detection happens. <br />
-          </p>
+        <div className="bg-gray-100 p-4 border rounded mb-6 text-center">
+          <p>📌 Sit in good lighting</p>
+          <p>📌 Keep your face centered</p>
+          <p>📌 Wait 6 seconds for detection</p>
         </div>
 
-        {/* Button (Neutral Grey, No Blue) */}
         <button
           disabled={isDetecting}
           onClick={detectEmotion}
-          className="px-8 py-3 bg-gray-800 text-white rounded-xl shadow-md hover:bg-black transition disabled:opacity-40"
+          className="px-8 py-3 bg-gray-800 text-white rounded shadow"
         >
           {isDetecting ? "Detecting..." : "Start Detection"}
         </button>
 
-        {/* Result */}
-        <div className="mt-10 text-2xl bg-gray-100 border border-gray-300 px-8 py-4 rounded-xl">
+        <div className="mt-8 text-2xl bg-gray-100 border px-6 py-3 rounded">
           Final Emotion: <strong>{emotion}</strong>
         </div>
       </div>
