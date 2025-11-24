@@ -1,155 +1,169 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useRef, useState } from "react";
+import * as faceapi from "face-api.js";
+import imageCompression from "browser-image-compression";
 import Navbar from "@/components/Navbar";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Camera, Video, VideoOff, Music } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
-const FaceDetection = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [isActive, setIsActive] = useState(false);
-  const [emotion, setEmotion] = useState<string | null>(null);
-  const [confidence, setConfidence] = useState<number>(0);
+const FaceDetection: React.FC = () => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const handleStartCamera = () => {
-    setIsActive(true);
-    // Simulate emotion detection after a delay
-    setTimeout(() => {
-      const emotions = ["Happy", "Sad", "Angry", "Peaceful", "Excited"];
-      const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-      const randomConfidence = Math.floor(Math.random() * 30) + 70;
-      setEmotion(randomEmotion);
-      setConfidence(randomConfidence);
-    }, 2000);
+  const [emotion, setEmotion] = useState("Click Start Detection");
+  const [isDetecting, setIsDetecting] = useState(false);
+
+  // Load Model
+  const loadFaceModel = async () => {
+    await faceapi.nets.tinyFaceDetector.loadFromUri("/models/face");
   };
 
-  const handleStopCamera = () => {
-    setIsActive(false);
-    setEmotion(null);
-    setConfidence(0);
+  const startSilentCamera = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    if (videoRef.current) videoRef.current.srcObject = stream;
+    return stream;
   };
 
-  const handleGenerateMusic = () => {
-    toast({
-      title: "Generating Music",
-      description: `Creating a ${emotion?.toLowerCase()} melody for you...`,
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream;
+    stream?.getTracks().forEach((t) => t.stop());
+  };
+
+  async function compressCanvas(canvas: HTMLCanvasElement): Promise<File> {
+    const blob: Blob = await new Promise((resolve) =>
+      canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.9)
+    );
+
+    const file = new File([blob], "capture.jpg", {
+      type: "image/jpeg",
+      lastModified: Date.now(),
     });
-    setTimeout(() => {
-      toast({
-        title: "Music Generated!",
-        description: "Your emotion-based track is ready in the library.",
-      });
-      navigate("/library");
-    }, 2000);
+
+    return await imageCompression(file, {
+      maxSizeMB: 0.2,
+      maxWidthOrHeight: 300,
+      useWebWorker: true,
+    });
+  }
+
+  // MAIN LOGIC (unchanged)
+  const detectEmotion = async () => {
+    setIsDetecting(true);
+    setEmotion("Detecting...");
+    await loadFaceModel();
+
+    await startSilentCamera();
+    const video = videoRef.current!;
+    video.play();
+
+    const emotionsArray: string[] = [];
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+
+    const startTime = Date.now();
+
+    return new Promise<void>((resolve) => {
+      const interval = setInterval(async () => {
+        if (Date.now() - startTime >= 6000) {
+          clearInterval(interval);
+          stopCamera();
+
+          if (emotionsArray.length === 0) {
+            setEmotion("No face detected");
+          } else {
+            const freq = emotionsArray.reduce((acc: any, e) => {
+              acc[e] = (acc[e] || 0) + 1;
+              return acc;
+            }, {});
+
+            const finalEmotion = Object.keys(freq).reduce((a, b) =>
+              freq[a] > freq[b] ? a : b
+            );
+
+            setEmotion(finalEmotion);
+          }
+
+          setIsDetecting(false);
+          resolve();
+          return;
+        }
+
+        const detection = await faceapi.detectSingleFace(
+          video,
+          new faceapi.TinyFaceDetectorOptions()
+        );
+
+        if (!detection) return;
+
+        const { x, y, width, height } = detection.box;
+
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
+
+        ctx.drawImage(
+          video,
+          Math.round(x),
+          Math.round(y),
+          Math.round(width),
+          Math.round(height),
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+        const compressedFile = await compressCanvas(canvas);
+
+        const formData = new FormData();
+        formData.append("image", compressedFile, "face.jpg");
+
+        try {
+          const res = await fetch("http://127.0.0.1:5001/predict-emotion", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await res.json();
+          if (data?.emotion) emotionsArray.push(data.emotion);
+        } catch (err) {
+          console.error(err);
+        }
+      }, 200);
+    });
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white text-gray-900">
       <Navbar />
 
-      <div className="container mx-auto px-4 pt-24 pb-12">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-4 text-foreground">
-              Face Emotion Detection
-            </h1>
-            <p className="text-muted-foreground text-lg">
-              Let AI analyze your facial expressions to detect your current emotion
-            </p>
-          </div>
+      {/* Hidden video */}
+      <video ref={videoRef} className="hidden" autoPlay muted playsInline />
 
-          <div className="grid md:grid-cols-2 gap-8">
-            <Card className="p-6 border-2 border-border">
-              <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
-                {isActive ? (
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 animate-pulse" />
-                ) : (
-                  <Camera className="h-24 w-24 text-muted-foreground" />
-                )}
-                {isActive && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-48 h-48 border-4 border-primary rounded-lg animate-pulse" />
-                  </div>
-                )}
-              </div>
+      <div className="flex flex-col items-center pt-20 px-4">
 
-              <div className="flex gap-3">
-                {!isActive ? (
-                  <Button
-                    onClick={handleStartCamera}
-                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-                    size="lg"
-                  >
-                    <Video className="mr-2 h-5 w-5" />
-                    Start Camera
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleStopCamera}
-                    variant="destructive"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    <VideoOff className="mr-2 h-5 w-5" />
-                    Stop Camera
-                  </Button>
-                )}
-              </div>
-            </Card>
+        <h1 className="text-4xl font-bold mb-6 text-center">
+          Face Emotion Detection
+        </h1>
 
-            <div className="space-y-6">
-              <Card className="p-6 border-2 border-border">
-                <h3 className="text-xl font-semibold mb-4 text-foreground">
-                  Detection Results
-                </h3>
+        {/* Instructions Section (NEUTRAL THEME) */}
+        <div className="max-w-lg text-center text-gray-700 bg-gray-100 p-4 rounded-lg border border-gray-300 mb-8">
+          <p className="font-semibold">📌 Instructions</p>
+          <p className="mt-2">
+            • Sit in a well-lit area. <br />
+            • Keep your face straight and centered. <br />
+            • The camera will capture your face automatically. <br />
+            • Wait for 6 seconds while detection happens. <br />
+          </p>
+        </div>
 
-                {emotion ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm text-muted-foreground">
-                        Detected Emotion
-                      </label>
-                      <p className="text-3xl font-bold text-primary mt-1">
-                        {emotion}
-                      </p>
-                    </div>
+        {/* Button (Neutral Grey, No Blue) */}
+        <button
+          disabled={isDetecting}
+          onClick={detectEmotion}
+          className="px-8 py-3 bg-gray-800 text-white rounded-xl shadow-md hover:bg-black transition disabled:opacity-40"
+        >
+          {isDetecting ? "Detecting..." : "Start Detection"}
+        </button>
 
-                    <div>
-                      <label className="text-sm text-muted-foreground">
-                        Confidence Level
-                      </label>
-                      <div className="flex items-center gap-3 mt-2">
-                        <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all duration-500"
-                            style={{ width: `${confidence}%` }}
-                          />
-                        </div>
-                        <span className="text-lg font-semibold text-foreground">
-                          {confidence}%
-                        </span>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={handleGenerateMusic}
-                      className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground mt-4"
-                      size="lg"
-                    >
-                      <Music className="mr-2 h-5 w-5" />
-                      Generate Music Based on Emotion
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">
-                    Start the camera to begin emotion detection
-                  </p>
-                )}
-              </Card>
-            </div>
-          </div>
+        {/* Result */}
+        <div className="mt-10 text-2xl bg-gray-100 border border-gray-300 px-8 py-4 rounded-xl">
+          Final Emotion: <strong>{emotion}</strong>
         </div>
       </div>
     </div>
