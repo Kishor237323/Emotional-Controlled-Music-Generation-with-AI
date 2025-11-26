@@ -36,7 +36,7 @@ def add_headers(response):
 # -------------------------
 # MONGODB CONNECTION
 # -------------------------
-MONGO_URI = "mongodb+srv://kishorcheduri2_db_user:L3ZdEw7pkT7MiGLo@cluster1.pdmfku1.mongodb.net/musicgen?retryWrites=true&w=majority&appName=Cluster1"
+MONGO_URI = "your  cluster url"
 
 try:
     client = MongoClient(MONGO_URI, tls=True)
