@@ -1,10 +1,15 @@
 import React, { useRef, useState } from "react";
 import * as faceapi from "face-api.js";
+
 import imageCompression from "browser-image-compression";
 import Navbar from "@/components/Navbar";
 
+// ✅ Correct router for your project
+import { useNavigate } from "react-router-dom";
+
 const FaceDetection: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const navigate = useNavigate(); // ✅ added
 
   const [emotion, setEmotion] = useState("Click Start Detection");
   const [isDetecting, setIsDetecting] = useState(false);
@@ -63,22 +68,29 @@ const FaceDetection: React.FC = () => {
           clearInterval(interval);
           stopCamera();
 
-          if (emotionsArray.length === 0) {
-            setEmotion("No face detected");
-          } else {
+          let finalEmotion = "No face detected";
+
+          if (emotionsArray.length > 0) {
             const freq = emotionsArray.reduce((acc: any, e) => {
               acc[e] = (acc[e] || 0) + 1;
               return acc;
             }, {});
 
-            const best = Object.keys(freq).reduce((a, b) =>
+            finalEmotion = Object.keys(freq).reduce((a, b) =>
               freq[a] > freq[b] ? a : b
             );
-
-            setEmotion(best);
           }
 
+          setEmotion(finalEmotion);
           setIsDetecting(false);
+
+     if (finalEmotion !== "No face detected") {
+  setTimeout(() => {
+    navigate(`/library?emotion=${finalEmotion}`);
+  }, 200);
+}
+
+
           resolve();
           return;
         }
@@ -109,7 +121,6 @@ const FaceDetection: React.FC = () => {
         );
 
         const compressedFile = await compressCanvas(canvas);
-
         const formData = new FormData();
         formData.append("image", compressedFile);
 

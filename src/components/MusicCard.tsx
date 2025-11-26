@@ -1,72 +1,38 @@
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Play, Download, Trash2 } from "lucide-react";
+import { Download, Trash2, Play } from "lucide-react";
 
 interface MusicCardProps {
   title: string;
-  emotion?: string;
-  date?: string;
-  type: "generated" | "uploaded";
+  emotion: string;
+  date: string;
+  type: string;
   onPlay: () => void;
-  onDownload?: () => void;
-  onDelete?: () => void;
+  onDownload: () => void;
+  onDelete: () => void;
 }
 
-const MusicCard = ({
-  title,
-  emotion,
-  date,
-  type,
-  onPlay,
-  onDownload,
-  onDelete,
-}: MusicCardProps) => {
+const MusicCard = ({ title, emotion, date, onPlay, onDownload, onDelete }: MusicCardProps) => {
   return (
-    <Card className="p-4 hover:shadow-lg transition-all duration-300 border border-border hover:border-primary group">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={onPlay}
-          className="rounded-full w-12 h-12 border-2 hover:bg-primary hover:text-primary-foreground transition-all duration-300 group-hover:scale-110"
-        >
-          <Play className="h-5 w-5 fill-current" />
-        </Button>
+    <div className="flex items-center justify-between">
+      <div>
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <p className="text-gray-700">{emotion}</p>
+        <p className="text-gray-500">{date}</p>
 
-        <div className="flex-1">
-          <h4 className="font-semibold text-foreground">{title}</h4>
-          {emotion && (
-            <p className="text-sm text-muted-foreground">Emotion: {emotion}</p>
-          )}
-          {date && (
-            <p className="text-xs text-muted-foreground mt-1">{date}</p>
-          )}
-        </div>
+        <div className="flex gap-4 mt-4">
+          <button onClick={onPlay} className="btn btn-primary flex items-center gap-2">
+            <Play size={18} /> Play
+          </button>
 
-        <div className="flex gap-2">
-          {type === "generated" && onDownload && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onDownload}
-              className="hover:bg-muted hover:text-primary transition-colors"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-          )}
-          {type === "uploaded" && onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onDelete}
-              className="hover:bg-destructive hover:text-destructive-foreground transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+          <button onClick={onDownload} className="btn btn-secondary flex items-center gap-2">
+            <Download size={18} /> Download
+          </button>
+
+          <button onClick={onDelete} className="btn btn-danger flex items-center gap-2">
+            <Trash2 size={18} /> Delete
+          </button>
         </div>
       </div>
-    </Card>
+    </div>
   );
 };
 
