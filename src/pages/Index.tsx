@@ -26,7 +26,7 @@ const Index = () => {
   <div className="container mx-auto px-4 relative z-10 pt-24 pb-12">
     <div className="text-center mb-20 animate-fade-in">
       <h1 className="text-6xl md:text-7xl font-extrabold mb-6 text-foreground drop-shadow-xl">
-        Emotion-Based Music Generator
+        Emotional -Controlled Music Generation
       </h1>
 
       <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto drop-shadow">

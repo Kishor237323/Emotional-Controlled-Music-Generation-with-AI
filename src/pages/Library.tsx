@@ -21,20 +21,18 @@ const Library = () => {
 
   const waveformRefs = useRef<Record<string, any>>({});
 
-  // Fetch all tracks on load
+
   useEffect(() => {
     fetchGeneratedTracks();
     fetchLikedTracks();
   }, []);
 
-  // Auto-generate when redirected from detection page
+
   useEffect(() => {
     if (emotion) generateMusicFromEmotion(emotion);
   }, [emotion]);
 
-  // -------------------------
-  // LOAD GENERATED TRACKS
-  // -------------------------
+
   const fetchGeneratedTracks = async () => {
     try {
       const res = await fetch(`${API_BASE}/get-tracks`);
@@ -55,9 +53,7 @@ const Library = () => {
     }
   };
 
-  // -------------------------
-  // LOAD LIKED / UPLOADS
-  // -------------------------
+
   const fetchLikedTracks = async () => {
     try {
       const res = await fetch(`${API_BASE}/get-liked-tracks`);
@@ -76,9 +72,7 @@ const Library = () => {
     }
   };
 
-  // -------------------------
-  // GENERATE MUSIC
-  // -------------------------
+
   const generateMusicFromEmotion = async (emotion: string) => {
     try {
       setIsGenerating(true);
@@ -118,12 +112,20 @@ const Library = () => {
     }
   };
 
-  // -------------------------
-  // DELETE TRACK
-  // -------------------------
+
   const deleteTrack = async (track: any, type: string) => {
     try {
-      const cleanUrl = track.audio_url.replace(API_BASE, "");
+      let cleanUrl = track.audio_url.replace(API_BASE, "");
+
+      // Ensure URL starts with /static...
+      if (!cleanUrl.startsWith("/")) {
+        cleanUrl = "/" + cleanUrl;
+      }
+
+      // Remove duplicate slashes (//static → /static)
+      cleanUrl = cleanUrl.replace(/\/+/g, "/");
+
+      console.log("Deleting:", cleanUrl);
 
       const res = await fetch(`${API_BASE}/delete-track`, {
         method: "POST",
@@ -139,10 +141,17 @@ const Library = () => {
           description: `${track.title} removed.`,
         });
 
-        if (type === "generated") fetchGeneratedTracks();
-        else fetchLikedTracks();
+        type === "generated"
+          ? fetchGeneratedTracks()
+          : fetchLikedTracks();
+      } else {
+        toast({
+          title: "Not Found",
+          description: "Track not present in database",
+          variant: "destructive",
+        });
       }
-    } catch {
+    } catch (err) {
       toast({
         title: "Error deleting track",
         variant: "destructive",
@@ -151,84 +160,89 @@ const Library = () => {
   };
 
 
+
   const regenerateMusic = async (track: any) => {
-  try {
-    toast({
-      title: "Improving Track…",
-      description: `Generating better version of ${track.title}`,
-    });
+    try {
+      toast({
+        title: "Improving Track…",
+        description: `Generating better version of ${track.title}`,
+      });
 
-    const res = await fetch(`${API_BASE}/regenerate-music`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        emotion: track.emotion,
-        variation: (track.variation || 0) + 1,
-      }),
-    });
+      const res = await fetch(`${API_BASE}/regenerate-music`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emotion: track.emotion,
+          variation: (track.variation || 0) + 1,
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!data?.audio_url) {
+      if (!data?.audio_url) {
+        toast({
+          title: "Error",
+          description: "Regeneration failed",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setGeneratedMusic((prev: any) => [
+        {
+          ...track,
+          audio_url: `${API_BASE}${data.audio_url}`,
+          title: `${track.emotion} Track (Improved)`,
+          timestamp: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+
+      toast({
+        title: "Improved Version Ready 🎶",
+        description: "Track regenerated successfully",
+      });
+    } catch (err) {
+      console.log(err);
       toast({
         title: "Error",
-        description: "Regeneration failed",
+        description: "Something went wrong",
         variant: "destructive",
       });
-      return;
     }
-
-    // Add new improved track
-    setGeneratedMusic((prev: any) => [
-      {
-        ...track,
-        audio_url: `${API_BASE}${data.audio_url}`,
-        title: `${track.emotion} Track (Improved)`,
-        timestamp: new Date().toISOString(),
-      },
-      ...prev,
-    ]);
-
-    toast({
-      title: "Improved Version Ready 🎶",
-      description: "Track regenerated successfully",
-    });
-  } catch (err) {
-    console.log(err);
-    toast({
-      title: "Error",
-      description: "Something went wrong",
-      variant: "destructive",
-    });
-  }
-};
+  };
 
 
-  // -------------------------
-  // LIKE TRACK → Save to DB
-  // -------------------------
+
   const likeTrack = async (track: any) => {
     try {
+      const payload = {
+        track: {
+          title: track.title || "Liked Track",
+          emotion: track.emotion,
+          audio_url: track.audio_url,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
       await fetch(`${API_BASE}/save-liked-track`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(track),
+        body: JSON.stringify(payload),
       });
 
       toast({
-        title: "Added to My Uploads ❤️",
+        title: "Added to ❤️",
         description: track.title,
       });
 
-      fetchLikedTracks();
+      fetchLikedTracks(); // reload uploads
     } catch {
       toast({ title: "Error saving", variant: "destructive" });
     }
   };
 
-  // -------------------------
-  // RENDER
-  // -------------------------
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -253,10 +267,9 @@ const Library = () => {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {generatedMusic.map((track: any) => {
                 const id =
-                  track._id ||
-                  track.id ||
-                  track.audio_url ||
-                  `${track.timestamp}-${track.emotion}`;
+                  track._id ??
+                  `${track.audio_url}-${track.timestamp}-${Math.random().toString(36).slice(2)}`;
+
 
                 if (!waveformRefs.current[id]) {
                   waveformRefs.current[id] = React.createRef();
@@ -268,9 +281,11 @@ const Library = () => {
                       title={track.title}
                       emotion={track.emotion}
                       date={
-                        new Date(track.timestamp).toLocaleDateString() +
+                        new Date(new Date(track.timestamp).toLocaleString()
+                        ).toLocaleDateString() +
                         " • " +
-                        new Date(track.timestamp).toLocaleTimeString([], {
+                        new Date(new Date(track.timestamp).toLocaleString()
+                        ).toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
                         })
@@ -312,42 +327,12 @@ const Library = () => {
             </div>
           </TabsContent>
 
-          {/* --------------------- UPLOADED --------------------- */}
           <TabsContent value="uploaded">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {uploadedMusic.map((track: any) => {
-                const id =
-                  track._id ||
-                  track.id ||
-                  track.audio_url ||
-                  `${track.timestamp}-${track.emotion}`;
-
-                return (
-                  <div key={id} className="p-4 rounded border shadow bg-white">
-                    <MusicCard
-                      title={track.title}
-                      emotion={track.emotion}
-                      date={
-                        new Date(track.timestamp).toLocaleDateString() +
-                        " • " +
-                        new Date(track.timestamp).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      }
-
-                      type="uploaded"
-                      onPlay={() => { }}
-                      onDownload={() => window.open(track.audio_url, "_blank")}
-                      onDelete={() => deleteTrack(track, "liked")}
-                    />
-
-                    <Waveform audioUrl={track.audio_url} />
-                  </div>
-                );
-              })}
+            <div className="text-center text-muted-foreground py-20 text-lg">
+              No uploads yet
             </div>
           </TabsContent>
+
         </Tabs>
       </div>
     </div>

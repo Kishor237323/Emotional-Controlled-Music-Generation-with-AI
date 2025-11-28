@@ -12,10 +12,12 @@ import requests
 from pymongo import MongoClient
 
 import uuid
+import os
+os.environ["PATH"] += os.pathsep + r"C:\Users\kisho\Downloads\ffmpeg-8.0.1-essentials_build\ffmpeg-8.0.1-essentials_build\bin"
 
 app = Flask(__name__, static_folder="static")
 
-# Enable full CORS support
+
 CORS(app, resources={
     r"/*": {
         "origins": ["*", "http://localhost:5173", "https://*.ngrok-free.dev"],
@@ -24,7 +26,7 @@ CORS(app, resources={
     }
 })
 
-# Also ensure every response includes Access-Control headers
+
 @app.after_request
 def add_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -33,9 +35,7 @@ def add_headers(response):
     return response
 
 
-# -------------------------
-# MONGODB CONNECTION
-# -------------------------
+
 MONGO_URI = "mongodb+srv://kishorcheduri2_db_user:L3ZdEw7pkT7MiGLo@cluster1.pdmfku1.mongodb.net/musicgen?retryWrites=true&w=majority&appName=Cluster1"
 
 try:
@@ -47,15 +47,8 @@ except Exception as e:
     print("MongoDB CONNECTION ERROR:", e)
 
 
-# -------------------------
-# COLAB MUSICGEN GPU API
-# -------------------------
+
 COLAB_API = "https://breedable-semisomnolently-abdullah.ngrok-free.dev/generate"
-
-
-# -------------------------
-# FLASK APP INITIALIZATION
-# -------------------------
 
 
 
@@ -67,9 +60,6 @@ print("Emotion Model Loaded!")
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
 
 
-# -------------------------
-# Mood → Prompt Mapping
-# -------------------------
 mood_prompts = {
     "Angry": "aggressive electronic music with heavy drums and dark distorted synths",
     "Disgust": "gritty uneasy soundscape with rough textures and dissonant tones",
@@ -81,9 +71,6 @@ mood_prompts = {
 }
 
 
-# -------------------------
-# EMOTION PREDICTION
-# -------------------------
 @app.route("/predict-emotion", methods=["POST"])
 def predict_emotion():
     try:
@@ -111,9 +98,6 @@ def predict_emotion():
         return jsonify({"error": str(e)}), 500
 
 
-# ----------------------------------------------
-# CONTACT COLAB → GET MUSIC (BASE64 WAV)
-# ----------------------------------------------
 def generate_music_from_colab(prompt: str):
     try:
         response = requests.post(COLAB_API, json={"prompt": prompt}, timeout=600)
@@ -130,9 +114,6 @@ def generate_music_from_colab(prompt: str):
         return None
 
 
-# ----------------------------------------------
-# SAVE BASE64 → WAV FILE
-# ----------------------------------------------
 def save_audio(base64_string):
     out_dir = os.path.join("static", "generated")
     os.makedirs(out_dir, exist_ok=True)
@@ -146,9 +127,6 @@ def save_audio(base64_string):
     return filename
 
 
-# ----------------------------------------------
-# GENERATE MUSIC ROUTE
-# ----------------------------------------------
 COLAB_URL = "https://breedable-semisomnolently-abdullah.ngrok-free.dev/generate"
 
 @app.route("/generate-music", methods=["POST"])
@@ -162,7 +140,7 @@ def generate_music_route():
 
         prompt = mood_prompts[emotion]
 
-        # Send request to Colab GPU MusicGen
+        print("Sending prompt to Colab:", prompt)
         response = requests.post(
             COLAB_URL,
             json={"prompt": prompt},
@@ -176,7 +154,7 @@ def generate_music_route():
 
         audio_base64 = result["audio_base64"]
 
-        # Save WAV file locally
+     
         audio_bytes = base64.b64decode(audio_base64)
         filename = f"track_{uuid.uuid4().hex}.wav"
         save_path = os.path.join("static", "generated", filename)
@@ -186,7 +164,7 @@ def generate_music_route():
 
         audio_url = f"/static/generated/{filename}"
 
-        # Save to MongoDB
+       
         tracks_collection.insert_one({
             "emotion": emotion,
             "variation": 0,
@@ -207,10 +185,6 @@ def generate_music_route():
 
 
 
-
-# ----------------------------------------------
-# REGENERATE MUSIC
-# ----------------------------------------------
 @app.route("/regenerate-music", methods=["POST"])
 def regenerate_music():
     try:
@@ -220,39 +194,52 @@ def regenerate_music():
 
         if not emotion:
             return jsonify({"error": "Missing emotion"}), 400
-
-        # Improved prompts
         variation_suffix = [
-            "",
-            " with deeper instruments",
-            " with more melody and richness",
-            " professionally mixed and enhanced"
+    "",  
+    # Variation 1
+    " with deeper atmospheric layers, warm bass, and enriched harmonic textures",
+
+    # Variation 2 
+    " with expanded melody, expressive instruments, richer dynamics, and emotional progression",
+
+    # Variation 3 
+    " with cinematic depth, wide stereo imaging, detailed instrumentation, and professional studio mixing"
         ]
 
-        final_prompt = f"{emotion} music{variation_suffix[min(variation, 3)]}"
+        prompt = f"{emotion} music{variation_suffix[min(variation, 3)]}"
+        print("Sending prompt:", prompt)
 
-        # Send request to Colab for regeneration
         response = requests.post(
-            COLAB_API,  # SAME as generate!
-            json={"prompt": final_prompt},
+            COLAB_API,
+            json={"prompt": prompt},
             timeout=120
         )
 
-        result = response.json()
+        
+        print("== RAW COLAB RESPONSE ==")
+        print("Status:", response.status_code)
+        print("Body:", response.text)
+
+       
+        if response.status_code != 200:
+            return jsonify({"error": "Colab error", "details": response.text}), 500
+        
+        try:
+            result = response.json()
+        except:
+            return jsonify({"error": "Invalid JSON from Colab", "raw": response.text}), 500
 
         if "audio_base64" not in result:
-            return jsonify({"error": "Colab error"}), 500
+            return jsonify({"error": "Missing audio", "raw": result}), 500
 
-        # Save regenerated audio
         filename = save_audio(result["audio_base64"])
         audio_url = f"/static/generated/{filename}"
 
-        # Save in DB
         tracks_collection.insert_one({
             "emotion": emotion,
             "variation": variation,
+            "prompt": prompt,
             "audio_url": audio_url,
-            "prompt": final_prompt,
             "timestamp": datetime.utcnow().isoformat(),
             "type": "generated"
         })
@@ -266,6 +253,8 @@ def regenerate_music():
     except Exception as e:
         print("Regenerate Error:", e)
         return jsonify({"error": str(e)}), 500
+
+
 
 
 
@@ -305,14 +294,10 @@ def get_liked_tracks():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# ----------------------------------------------
-# GET TRACKS
-# ----------------------------------------------
 @app.route("/get-tracks", methods=["GET"])
 def get_tracks():
     try:
-        # fetch only generated / regenerated (NOT liked)
+        
         tracks = list(tracks_collection.find(
             {"type": {"$ne": "liked"}},
             {"_id": 0}
@@ -330,7 +315,7 @@ def delete_track():
         data = request.get_json()
         audio_url = data.get("audio_url")
 
-        # FIX: Normalize URL
+     
         if audio_url.startswith("http"):
             audio_url = audio_url.split("/static")[-1]
             audio_url = "/static" + audio_url
@@ -346,11 +331,100 @@ def delete_track():
         return jsonify({"error": str(e)}), 500
 
 
-# HOME
+import whisper
+import librosa
+import numpy as np
+import soundfile as sf
+import torch
+
+print("Loading Whisper tiny model...")
+whisper_model = whisper.load_model("tiny")
+
+
+
+def load_audio_16k(path):
+    try:
+        audio, sr = sf.read(path)
+        if sr != 16000:
+            audio = librosa.resample(np.array(audio), sr, 16000)
+        return audio, 16000
+    except Exception:
+        audio, sr = librosa.load(path, sr=16000)
+        return audio, sr
+
+def detect_text_emotion(text):
+    text = text.lower()
+
+    keywords = {
+        "happy": [
+            "happy", "joy", "excited", "glad", "good", "wonderful", "great",
+            "awesome", "fantastic", "feeling positive", "delighted"
+        ],
+        "sad": [
+            "sad", "down", "upset", "unhappy", "depressed", "bad", "tired",
+            "hurt", "feeling low", "heartbroken"
+        ],
+        "angry": [
+            "angry", "mad", "furious", "irritated", "annoyed",
+            "frustrated", "pissed"
+        ],
+        "fearful": [
+            "scared", "afraid", "nervous", "anxious", "terrified",
+            "worried", "tense"
+        ],
+        "surprise": [
+            "wow", "shocked", "surprised", "unexpected", "no way",
+            "unbelievable"
+        ],
+        "disgust": [
+            "disgusting", "gross", "nasty", "horrible", "terrible",
+            "yuck"
+        ],
+        "neutral": [
+            "okay", "fine", "normal", "neutral", "alright", "nothing",
+            "whatever", "just talking"
+        ]
+    }
+
+    for emotion, words in keywords.items():
+        if any(w in text for w in words):
+            return emotion
+
+    return "neutral"
+
+
+@app.route("/predict-voice-emotion", methods=["POST"])
+def predict_voice():
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files["file"]
+
+        upload_path = os.path.join(os.path.dirname(__file__), "temp_audio.wav")
+        file.save(upload_path)
+
+        print("Transcribing audio with Whisper...")
+        whisper_result = whisper_model.transcribe(upload_path)
+        text = whisper_result.get("text", "")
+
+       
+        final_emotion = detect_text_emotion(text)
+
+        return jsonify({
+            "speech_text": text,
+            "final_emotion": final_emotion
+        })
+
+    except Exception as e:
+        print("Voice Emotion Error:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+
 @app.route("/")
 def home():
     return "Flask backend running!"
 
-
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=False, use_reloader=False)
