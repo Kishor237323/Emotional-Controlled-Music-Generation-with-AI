@@ -1,73 +1,177 @@
-# Welcome to your Lovable project
+🎵 Emotion-Controlled Music Generation with AI
+A Deep Learning System That Detects Emotion & Generates Music Using MusicGen + CV + Voice
+🚀 Project Overview
 
-## Project info
+This project is an AI-powered music generation system that automatically creates personalized music based on user emotion.
+The system captures emotion using either:
 
-**URL**: https://lovable.dev/projects/e4533539-ee78-4762-8a49-28cdda181279
+Face emotion detection (camera input)
 
-## How can I edit this code?
+Voice emotion detection (audio input)
 
-There are several ways of editing your application.
+Once the emotion is detected, the app uses Meta’s MusicGen model running on GPU (Colab/Cloud) to generate a custom music track.
+Tracks are saved, played, regenerated, liked, and downloaded through a responsive React + Vite UI with MongoDB backend.
 
-**Use Lovable**
+✨ Features
+🎭 Emotion Detection
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/e4533539-ee78-4762-8a49-28cdda181279) and start prompting.
+Face-based emotion classification using a CNN (TensorFlow/Keras).
 
-Changes made via Lovable will be committed automatically to this repo.
+Supports emotions: Angry, Disgust, Fear, Happy, Sad, Surprise, Neutral.
 
-**Use your preferred IDE**
+🎶 AI Music Generation
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Uses MusicGen-Small model from Facebook AI.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Generates 20-second high-quality music based on emotion → text prompt mapping.
 
-Follow these steps:
+Supports variation/regeneration of tracks.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+📁 Music Library
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+View all generated tracks
 
-# Step 3: Install the necessary dependencies.
-npm i
+Play music with waveform using Wavesurfer.js
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Like, save, delete, and download tracks
+
+Tracks stored in MongoDB Atlas
+
+🔥 Backend: Flask + Colab GPU
+
+Flask REST API
+
+MusicGen running on external Colab GPU over ngrok
+
+Full CORS-enabled architecture
+
+Saves audio files under /static/generated/
+
+🎨 Frontend: React + Vite
+
+Modern UI
+
+Beautiful music cards
+
+Tabs: Generated Music and My Uploads
+
+Toast notifications
+
+Audio waveform + Play/Pause control
+
+🧠 Tech Stack
+Frontend
+
+React + TypeScript
+
+Vite
+
+ShadCN/UI
+
+Wavesurfer.js
+
+Backend
+
+Python Flask
+
+TensorFlow/Keras (Emotion detection)
+
+MusicGen (HuggingFace Transformers)
+
+Pyngrok (Colab Tunnel)
+
+MongoDB Atlas
+
+Requests, NumPy, PIL, etc.
+
+📦 Project Architecture
+frontend/
+ ├── src/
+ │   ├── components/
+ │   │   ├── MusicCard.tsx
+ │   │   ├── Waveform.tsx
+ │   │   ├── Navbar.tsx
+ │   ├── pages/
+ │   │   ├── FaceDetection.tsx
+ │   │   ├── VoiceDetection.tsx
+ │   │   ├── Library.tsx
+ │   ├── App.tsx
+ │   └── main.tsx
+
+backend/
+ ├── app.py
+ ├── emotion_model.h5
+ ├── static/
+ │   └── generated/
+ ├── requirements.txt
+
+🔧 Setup Instructions
+1️⃣ Clone the Repository
+git clone https://github.com/Kishor237323/Emotional-Controlled-Music-Generation-with-AI.git
+cd Emotional-Controlled-Music-Generation-with-AI
+
+2️⃣ Install Backend Dependencies
+cd backend
+pip install -r requirements.txt
+
+3️⃣ Start Flask Server
+python app.py
+
+4️⃣ Enable GPU MusicGen (Colab)
+
+Run the provided Colab notebook → copy ngrok URL → paste into Flask COLAB_URL.
+
+5️⃣ Start Frontend
+cd frontend
+npm install
 npm run dev
-```
 
-**Edit a file directly in GitHub**
+🎧 How Music Generation Works
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Emotion is detected from face/voice input
 
-**Use GitHub Codespaces**
+Emotion → Prompt mapping (e.g., “Happy” → “bright upbeat pop melody…”)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Prompt sent to MusicGen running on GPU
 
-## What technologies are used for this project?
+Audio is generated → sent back as Base64 → saved as WAV
 
-This project is built with:
+Track is stored in MongoDB and displayed in the UI
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+🛢 Database Schema (MongoDB)
+Generated Tracks
+{
+  emotion: "Happy",
+  variation: 0,
+  prompt: "bright upbeat pop melody...",
+  audio_url: "/static/generated/track_xyz.wav",
+  timestamp: "2025-11-26T12:22:45"
+}
 
-## How can I deploy this project?
+Liked Tracks
+{
+  title: "Happy Track",
+  emotion: "Happy",
+  audio_url: "...",
+  timestamp: "2025-11-26T12:23:10",
+  type: "liked"
+}
 
-Simply open [Lovable](https://lovable.dev/projects/e4533539-ee78-4762-8a49-28cdda181279) and click on Share -> Publish.
+🚀 Future Enhancements
 
-## Can I connect a custom domain to my Lovable project?
+Full voice-based emotion detection
 
-Yes, you can!
+User login system
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Playlist creation
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Multi-emotion blending
+
+Faster MusicGen inference using ONNX
+
+
+🤝 Contributors
+
+C H Prabhu Kishor
+Sai Sunil 
+Sai Akhil V
